@@ -2,6 +2,8 @@ package main
 
 import (
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/redis"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -9,6 +11,7 @@ import (
 	"new_home/webook/gin/internal/repository/dao"
 	"new_home/webook/gin/internal/service"
 	"new_home/webook/gin/internal/web"
+	"new_home/webook/gin/internal/web/middleware"
 	"time"
 )
 
@@ -22,7 +25,7 @@ func main() {
 		//允许请求的方法
 		//AllowMethods: []string{"PUT", "PATCH"},
 		//允许带上的请求头
-		AllowHeaders: []string{"Content-Type", "Authorization"},
+		AllowHeaders: []string{"Content-Type", "Authorization", "x-jwt-token"},
 		//允许带上的响应头
 		ExposeHeaders: []string{"Content-Length"},
 		//是否允许携带cookie
@@ -34,6 +37,19 @@ func main() {
 		//},
 		MaxAge: 12 * time.Hour,
 	}))
+	//store := cookie.NewStore([]byte("secret"))
+	//接入
+	store, err := redis.NewStore(16, "tcp", "localhost:16379", "", []byte("secret"))
+	if err != nil {
+		panic(err)
+	}
+	r.Use(sessions.Sessions("mysession", store))
+	r.Use(middleware.NewLoginMiddlewareJWTBuilder().
+		IgnorePaths("/users/loginJWT").
+		IgnorePaths("/users/signup").Build())
+	//r.Use(middleware.NewLoginMiddlewareBuilder().
+	//	IgnorePaths("/users/login").
+	//	IgnorePaths("/users/signup").Build())
 	user := initUser(initDB())
 	user.RegisterRoutes(r)
 	r.Run(":18080") // 监听并在 0.0.0.0:8080 上启动服务

@@ -3,10 +3,13 @@ package web
 import (
 	"fmt"
 	regexp "github.com/dlclark/regexp2"
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	jwt "github.com/golang-jwt/jwt/v5"
 	"net/http"
 	"new_home/webook/gin/internal/domain"
 	"new_home/webook/gin/internal/service"
+	"time"
 )
 
 // 所有跟用户相关的路由
@@ -41,6 +44,7 @@ func (u *UserHandler) RegisterRoutes(server *gin.Engine) {
 	})
 	ur.POST("/signup", u.SignUp)
 	ur.POST("/login", u.Login)
+	ur.POST("/loginJWT", u.LoginJWT)
 	ur.POST("/edit", u.Edit)
 	ur.GET("/profile", u.Profile)
 }
@@ -93,6 +97,46 @@ func (u *UserHandler) SignUp(ctx *gin.Context) {
 
 	ctx.String(http.StatusOK, "注册成功")
 }
+
+func (u *UserHandler) LoginJWT(ctx *gin.Context) {
+	type LoginReq struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	var req LoginReq
+	if err := ctx.Bind(&req); err != nil {
+		return
+	}
+	user, err := u.svc.Login(ctx, req.Email, req.Password)
+	if err == service.ErrInvalidUserOrPassword {
+		ctx.String(http.StatusOK, "用户名或密码错误")
+		return
+	}
+	if err != nil {
+		ctx.String(http.StatusOK, "系统异常")
+		return
+	}
+	//JWT设置
+	//token := jwt.New(jwt.SigningMethodHS256)
+	//
+
+	claims := UserClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+		},
+		UId: user.Id,
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodES512, claims)
+	signedString, err := token.SignedString([]byte("要有密钥"))
+	if err != nil {
+		ctx.String(http.StatusOK, "加密异常")
+		return
+	}
+	ctx.Header("x-jwt-token", signedString)
+	fmt.Printf(signedString)
+	fmt.Printf("%s", user.Id)
+	ctx.String(http.StatusOK, "登陆成功")
+}
 func (u *UserHandler) Login(ctx *gin.Context) {
 	type LoginReq struct {
 		Email    string `json:"email"`
@@ -113,7 +157,12 @@ func (u *UserHandler) Login(ctx *gin.Context) {
 	}
 
 	//取session进行设置
-	fmt.Printf(user.Email)
+	sess := sessions.Default(ctx)
+	sess.Set("userId", user.Id)
+	sess.Options(sessions.Options{
+		MaxAge: 60 * 30, //
+	})
+	sess.Save()
 	ctx.String(http.StatusOK, "登陆成功")
 }
 func (u *UserHandler) Edit(ctx *gin.Context) {

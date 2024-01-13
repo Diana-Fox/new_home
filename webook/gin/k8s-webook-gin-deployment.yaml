@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webook-gin
+  labels:
+    app: webook-gin
+spec:
+  replicas: 3 #副本数量
+  selector:
+    matchLabels:
+      app: webook-gin
+  template:
+    metadata:
+      name: webook-gin
+      labels:
+        app: webook-gin
+    spec:
+      containers:
+        - name: webook-gin
+          image: xiaobao/webook-gin:v0.0.1
+          imagePullPolicy: IfNotPresent
+      restartPolicy: Always
+      

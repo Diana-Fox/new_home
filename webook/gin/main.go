@@ -11,7 +11,10 @@ import (
 	"new_home/webook/gin/internal/repository/dao"
 	"new_home/webook/gin/internal/service"
 	"new_home/webook/gin/internal/web"
-	"new_home/webook/gin/internal/web/middleware"
+	"new_home/webook/gin/pkg/middleware"
+	"new_home/webook/gin/pkg/middleware/ratelimit"
+
+	redisClient "github.com/redis/go-redis/v9"
 	"time"
 )
 
@@ -43,6 +46,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	redisclient := redisClient.NewClient(&redisClient.Options{
+		Addr: "localhost:16379",
+	})
+	r.Use(ratelimit.NewBuilder(redisclient, time.Second, 100).Build())
 	r.Use(sessions.Sessions("mysession", store))
 	r.Use(middleware.NewLoginMiddlewareJWTBuilder().
 		IgnorePaths("/users/loginJWT").

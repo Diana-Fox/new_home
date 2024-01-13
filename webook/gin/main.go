@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"new_home/webook/gin/config"
 	"new_home/webook/gin/internal/repository"
 	"new_home/webook/gin/internal/repository/dao"
 	"new_home/webook/gin/internal/service"
@@ -42,12 +43,12 @@ func main() {
 	}))
 	//store := cookie.NewStore([]byte("secret"))
 	//接入
-	store, err := redis.NewStore(16, "tcp", "localhost:16379", "", []byte("secret"))
+	store, err := redis.NewStore(16, "tcp", config.Config.DB.DNS, "", []byte("secret"))
 	if err != nil {
 		panic(err)
 	}
 	redisclient := redisClient.NewClient(&redisClient.Options{
-		Addr: "localhost:16379",
+		Addr: config.Config.Redis.Addr,
 	})
 	r.Use(ratelimit.NewBuilder(redisclient, time.Second, 100).Build())
 	r.Use(sessions.Sessions("mysession", store))

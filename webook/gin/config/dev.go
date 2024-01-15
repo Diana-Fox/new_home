@@ -1,5 +1,6 @@
-//go:build dev
+//go:build !k8s
 
+// //go:build dev
 // 没使用k8s标签
 package config
 

@@ -9,8 +9,10 @@ import (
 	"gorm.io/gorm"
 	"new_home/webook/gin/config"
 	"new_home/webook/gin/internal/repository"
+	"new_home/webook/gin/internal/repository/cache"
 	"new_home/webook/gin/internal/repository/dao"
 	"new_home/webook/gin/internal/service"
+	"new_home/webook/gin/internal/service/sms/memory"
 	"new_home/webook/gin/internal/web"
 	"new_home/webook/gin/pkg/middleware"
 	"new_home/webook/gin/pkg/middleware/ratelimit"
@@ -43,7 +45,7 @@ func main() {
 	}))
 	//store := cookie.NewStore([]byte("secret"))
 	//接入
-	store, err := redis.NewStore(16, "tcp", config.Config.DB.DNS, "", []byte("secret"))
+	store, err := redis.NewStore(16, "tcp", config.Config.Redis.Addr, "", []byte("secret"))
 	if err != nil {
 		panic(err)
 	}
@@ -54,19 +56,26 @@ func main() {
 	r.Use(sessions.Sessions("mysession", store))
 	r.Use(middleware.NewLoginMiddlewareJWTBuilder().
 		IgnorePaths("/users/loginJWT").
+		IgnorePaths("/users/login_sms").
+		IgnorePaths("/users/login_sms/code/send").
 		IgnorePaths("/users/signup").Build())
 	//r.Use(middleware.NewLoginMiddlewareBuilder().
 	//	IgnorePaths("/users/login").
 	//	IgnorePaths("/users/signup").Build())
-	user := initUser(initDB())
+	user := initUser(initDB(), redisclient)
 	user.RegisterRoutes(r)
 	r.Run(":18080") // 监听并在 0.0.0.0:8080 上启动服务
 }
-func initUser(db *gorm.DB) *web.UserHandler {
+func initUser(db *gorm.DB, rdb redisClient.Cmdable) *web.UserHandler {
 	ud := dao.NewUserDAO(db)
-	repo := repository.NewUserRepository(ud)
+	uc := cache.NewUserCache(rdb, 10)
+	repo := repository.NewUserRepository(ud, uc)
 	svc := service.NewUserService(repo)
-	u := web.NewUserHandler(svc)
+	codeCache := cache.NewCodeCache(rdb)
+	codeRepo := repository.NewCodeRepository(codeCache)
+	me := memory.Service{}
+	codeSvc := service.NewCodeService(codeRepo, me)
+	u := web.NewUserHandler(svc, codeSvc)
 	return u
 }
 func initDB() *gorm.DB {

@@ -15,12 +15,13 @@ import (
 // 所有跟用户相关的路由
 type UserHandler struct {
 	svc           service.UserService
+	codeSvc       service.CodeService
 	emailExp      *regexp.Regexp
 	passwordExp   *regexp.Regexp
 	brotherDayExp *regexp.Regexp
 }
 
-func NewUserHandler(svc service.UserService) *UserHandler {
+func NewUserHandler(svc service.UserService, codeSvc service.CodeService) *UserHandler {
 	const (
 		emailRegexPattern    = "^\\w+([-+.]\\w+)*@\\w+([-.]\\w+)*\\.\\w+([-.]\\w+)*$"
 		passwordRegexPattern = `^(?=.*[A-Za-z])(?=.*\d)(?=.*[$@$!%*#?&])[A-Za-z\d$@$!%*#?&]{8,}$`
@@ -31,6 +32,7 @@ func NewUserHandler(svc service.UserService) *UserHandler {
 	brotherDayExp := regexp.MustCompile(brotherDayPattern, regexp.None)
 	return &UserHandler{
 		svc:           svc,
+		codeSvc:       codeSvc,
 		emailExp:      emailExp,
 		passwordExp:   passwordExp,
 		brotherDayExp: brotherDayExp,
@@ -44,6 +46,8 @@ func (u *UserHandler) RegisterRoutes(server *gin.Engine) {
 	})
 	ur.POST("/signup", u.SignUp)
 	ur.POST("/login", u.Login)
+	ur.GET("/login_sms/code/send", u.SendLoginSMSCode)
+	ur.GET("/login_sms", u.LoginSMS)
 	ur.POST("/loginJWT", u.LoginJWT)
 	ur.POST("/edit", u.Edit)
 	ur.GET("/profile", u.Profile)
@@ -97,7 +101,24 @@ func (u *UserHandler) SignUp(ctx *gin.Context) {
 
 	ctx.String(http.StatusOK, "注册成功")
 }
-
+func (u *UserHandler) SendLoginSMSCode(ctx *gin.Context) {
+	type Req struct {
+		Phone string `json:"phone"`
+	}
+	var req Req
+	// Bind 方法会根据 Content-Type 来解析你的数据到 req 里面
+	// 解析错了，就会直接写回一个 400 的错误
+	if err := ctx.Bind(&req); err != nil {
+		return
+	}
+	const biz = "login"
+	err := u.codeSvc.Send(ctx, biz, req.Phone)
+	if err != nil {
+		ctx.JSON(http.StatusOK, "系统异常")
+		return
+	}
+	ctx.JSON(http.StatusOK, "发送成功")
+}
 func (u *UserHandler) LoginJWT(ctx *gin.Context) {
 	type LoginReq struct {
 		Email    string `json:"email"`
@@ -222,4 +243,37 @@ func (u *UserHandler) Profile(ctx *gin.Context) {
 		ctx.String(http.StatusOK, "获取失败")
 	}
 	ctx.JSON(http.StatusOK, user)
+}
+
+func (u *UserHandler) LoginSMS(ctx *gin.Context) {
+	type Req struct {
+		Phone string `json:"phone"`
+		Code  string `json:"code"`
+	}
+	var req Req
+	// Bind 方法会根据 Content-Type 来解析你的数据到 req 里面
+	// 解析错了，就会直接写回一个 400 的错误
+	if err := ctx.Bind(&req); err != nil {
+		return
+	}
+	const biz = "login"
+	ok, err := u.codeSvc.Verify(ctx, biz, req.Phone, req.Code)
+	if err != nil {
+		ctx.JSON(http.StatusOK, Result{
+			Code: 5,
+			Msg:  "系统错误",
+		})
+		return
+	}
+	if !ok {
+		ctx.JSON(http.StatusOK, Result{
+			Code: 5,
+			Msg:  "验证码有误",
+		})
+		return
+	}
+	ctx.JSON(http.StatusOK, Result{
+		Code: 2,
+		Msg:  "验证码校验成功",
+	})
 }

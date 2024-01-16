@@ -2,9 +2,11 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"new_home/webook/gin/internal/domain"
 	"new_home/webook/gin/internal/repository/cache"
 	"new_home/webook/gin/internal/repository/dao"
+	"time"
 )
 
 var (
@@ -17,10 +19,20 @@ type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (domain.User, error)
 	FindById(ctx context.Context, id int64) (domain.User, error)
 	Edit(ctx context.Context, u domain.User) error
+	FindByPhone(ctx context.Context, phone string) (domain.User, error)
 }
 type userRepository struct {
 	dao   dao.UserDAO
 	cache cache.UserCache
+}
+
+func (r *userRepository) FindByPhone(ctx context.Context, phone string) (domain.User, error) {
+	u, err := r.dao.FindByPhone(ctx, phone)
+	if err != nil {
+		return domain.User{}, err
+	}
+	return domain.User{Id: u.Id, Email: u.Email.String,
+		PassWord: u.Password}, nil
 }
 
 func NewUserRepository(dao dao.UserDAO, cache cache.UserCache) UserRepository {
@@ -31,18 +43,14 @@ func NewUserRepository(dao dao.UserDAO, cache cache.UserCache) UserRepository {
 }
 
 func (r *userRepository) Create(ctx context.Context, u domain.User) error {
-	return r.dao.Insert(ctx, dao.User{
-		Email:    u.Email,
-		Password: u.PassWord,
-	})
+	return r.dao.Insert(ctx, r.domainToEntity(u))
 }
 func (r *userRepository) FindByEmail(ctx context.Context, email string) (domain.User, error) {
 	u, err := r.dao.FindByEmail(ctx, email)
 	if err != nil {
 		return domain.User{}, err
 	}
-	return domain.User{Id: u.Id, Email: u.Email,
-		PassWord: u.Password}, nil
+	return r.entityToDomain(u), nil
 }
 
 func (r *userRepository) FindById(ctx context.Context, id int64) (domain.User, error) {
@@ -57,11 +65,7 @@ func (r *userRepository) FindById(ctx context.Context, id int64) (domain.User, e
 	if err != nil {
 		return domain.User{}, err
 	}
-	u = domain.User{Id: u.Id,
-		Email:      user.Email,
-		NickName:   user.NickName,
-		BrotherDay: user.BrotherDay,
-		Biography:  user.Biography}
+	u = r.entityToDomain(user)
 	err = r.cache.Set(ctx, u)
 	return u, nil
 }
@@ -72,4 +76,26 @@ func (r *userRepository) Edit(ctx context.Context, u domain.User) error {
 		Biography:  u.Biography,
 		BrotherDay: u.BrotherDay,
 	})
+}
+func (r *userRepository) domainToEntity(u domain.User) dao.User {
+	return dao.User{
+		Id: u.Id,
+		Email: sql.NullString{String: u.Email,
+			Valid: u.Email != ""},
+		Password: u.PassWord,
+		Phone: sql.NullString{
+			String: u.Phone,
+			Valid:  u.Phone != "",
+		},
+		Ctime: u.Ctime.UnixMilli(),
+	}
+}
+func (r *userRepository) entityToDomain(u dao.User) domain.User {
+	return domain.User{
+		Id:       u.Id,
+		Email:    u.Email.String,
+		PassWord: u.Password,
+		Phone:    u.Phone.String,
+		Ctime:    time.UnixMilli(u.Ctime),
+	}
 }

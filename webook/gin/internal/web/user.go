@@ -117,6 +117,7 @@ func (u *UserHandler) SendLoginSMSCode(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, "系统异常")
 		return
 	}
+
 	ctx.JSON(http.StatusOK, "发送成功")
 }
 func (u *UserHandler) LoginJWT(ctx *gin.Context) {
@@ -141,6 +142,15 @@ func (u *UserHandler) LoginJWT(ctx *gin.Context) {
 	//token := jwt.New(jwt.SigningMethodHS256)
 	//
 
+	err = u.setJWTToken(ctx, user)
+	if err != nil {
+		ctx.String(http.StatusOK, "登录异常")
+		return
+	}
+	ctx.String(http.StatusOK, "登陆成功")
+}
+
+func (u *UserHandler) setJWTToken(ctx *gin.Context, user domain.User) error {
 	claims := UserClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
@@ -150,13 +160,10 @@ func (u *UserHandler) LoginJWT(ctx *gin.Context) {
 	token := jwt.NewWithClaims(jwt.SigningMethodES512, claims)
 	signedString, err := token.SignedString([]byte("要有密钥"))
 	if err != nil {
-		ctx.String(http.StatusOK, "加密异常")
-		return
+		return err
 	}
 	ctx.Header("x-jwt-token", signedString)
-	fmt.Printf(signedString)
-	fmt.Printf("%s", user.Id)
-	ctx.String(http.StatusOK, "登陆成功")
+	return nil
 }
 func (u *UserHandler) Login(ctx *gin.Context) {
 	type LoginReq struct {
@@ -244,7 +251,6 @@ func (u *UserHandler) Profile(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, user)
 }
-
 func (u *UserHandler) LoginSMS(ctx *gin.Context) {
 	type Req struct {
 		Phone string `json:"phone"`
@@ -272,6 +278,19 @@ func (u *UserHandler) LoginSMS(ctx *gin.Context) {
 		})
 		return
 	}
+	//去根据手机号查，查不到的就创建
+	user, err := u.svc.FindOrCreate(ctx, req.Phone)
+	if err != nil {
+		ctx.String(http.StatusOK, "登录异常")
+		return
+	}
+	//要写token
+	err = u.setJWTToken(ctx, user)
+	if err != nil {
+		ctx.String(http.StatusOK, "登录异常")
+		return
+	}
+
 	ctx.JSON(http.StatusOK, Result{
 		Code: 2,
 		Msg:  "验证码校验成功",

@@ -2,6 +2,7 @@ package dao
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
@@ -18,6 +19,7 @@ type UserDAO interface {
 	FindById(ctx context.Context, id int64) (User, error)
 	Edit(ctx context.Context, id int64, u User) error
 	Insert(ctx context.Context, user User) error
+	FindByPhone(ctx context.Context, phone string) (User, error)
 }
 
 func NewUserDAO(db *gorm.DB) UserDAO {
@@ -27,9 +29,10 @@ func NewUserDAO(db *gorm.DB) UserDAO {
 }
 
 type User struct {
-	Id         int64  `gorm:"primaryKey,autoIncrement"`
-	Email      string `gorm:"unique"`
+	Id         int64          `gorm:"primaryKey,autoIncrement"`
+	Email      sql.NullString `gorm:"unique"`
 	Password   string
+	Phone      sql.NullString `gorm:"unique"`
 	NickName   string
 	BrotherDay int64
 	Biography  string
@@ -40,6 +43,12 @@ type User struct {
 }
 type userDAO struct {
 	db *gorm.DB
+}
+
+func (dao *userDAO) FindByPhone(ctx context.Context, phone string) (User, error) {
+	var u User
+	err := dao.db.WithContext(ctx).Where("phone=?", phone).Find(&u).Error
+	return u, err
 }
 
 func (dao *userDAO) Insert(ctx context.Context, u User) error {

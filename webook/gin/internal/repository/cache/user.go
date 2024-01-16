@@ -16,10 +16,10 @@ type UserCache interface {
 	Set(ctx context.Context, user domain.User) error
 }
 
-func NewUserCache(cmd redis.Cmdable, expiration time.Duration) UserCache {
+func NewUserCache(cmd redis.Cmdable) UserCache {
 	return &userCache{
 		cmd:        cmd,
-		expiration: expiration,
+		expiration: 10,
 	}
 }
 

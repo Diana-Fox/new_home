@@ -1,5 +1,9 @@
 package domain
 
+import (
+	"time"
+)
+
 // 领域对象
 type User struct {
 	Id         int64
@@ -8,4 +12,6 @@ type User struct {
 	NickName   string
 	BrotherDay int64
 	Biography  string
+	Ctime      time.Time
+	Phone      string
 }

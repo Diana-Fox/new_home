@@ -1,8 +1,8 @@
 package service
 
 import (
+	"context"
 	"errors"
-	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"new_home/webook/gin/internal/domain"
 	"new_home/webook/gin/internal/repository"
@@ -17,13 +17,31 @@ var (
 )
 
 type UserService interface {
-	SignUp(ctx *gin.Context, u domain.User) error
-	Login(ctx *gin.Context, email, password string) (domain.User, error)
-	Edit(ctx *gin.Context, id int64, nickName string, dataStr string, biography string) error
-	Profile(ctx *gin.Context, id int64) (domain.User, error)
+	SignUp(ctx context.Context, u domain.User) error
+	Login(ctx context.Context, email, password string) (domain.User, error)
+	Edit(ctx context.Context, id int64, nickName string, dataStr string, biography string) error
+	Profile(ctx context.Context, id int64) (domain.User, error)
+	FindOrCreate(ctx context.Context, phone string) (domain.User, error)
 }
 type userService struct {
 	repo repository.UserRepository
+}
+
+func (svc *userService) FindOrCreate(ctx context.Context, phone string) (domain.User, error) {
+	//先查再说
+	user, err := svc.repo.FindByPhone(ctx, phone)
+	if err != repository.ErrUserNotFind {
+		//查到或者报错不是未查到
+		return user, err
+	}
+	u := domain.User{Phone: phone}
+	//去注册
+	err = svc.repo.Create(ctx, u)
+	if err != nil {
+		return domain.User{}, err
+	}
+	//再查一次，但是这里会有主从延迟问题
+	return svc.repo.FindByPhone(ctx, phone)
 }
 
 func NewUserService(repo repository.UserRepository) UserService {
@@ -33,7 +51,7 @@ func NewUserService(repo repository.UserRepository) UserService {
 }
 
 // 加context是为了保持链路
-func (svc *userService) SignUp(ctx *gin.Context, u domain.User) error {
+func (svc *userService) SignUp(ctx context.Context, u domain.User) error {
 	//加密和存储
 	password, err := bcrypt.GenerateFromPassword([]byte(u.PassWord), bcrypt.DefaultCost)
 	if err != nil {
@@ -42,7 +60,7 @@ func (svc *userService) SignUp(ctx *gin.Context, u domain.User) error {
 	u.PassWord = string(password)
 	return svc.repo.Create(ctx, u)
 }
-func (svc *userService) Login(ctx *gin.Context, email, password string) (domain.User, error) {
+func (svc *userService) Login(ctx context.Context, email, password string) (domain.User, error) {
 	u, err := svc.repo.FindByEmail(ctx, email)
 	if err == repository.ErrUserNotFind {
 		return u, ErrUserDuplicateEmail
@@ -60,7 +78,7 @@ func (svc *userService) Login(ctx *gin.Context, email, password string) (domain.
 	return u, nil
 }
 
-func (svc *userService) Edit(ctx *gin.Context, id int64, nickName string, dataStr string, biography string) error {
+func (svc *userService) Edit(ctx context.Context, id int64, nickName string, dataStr string, biography string) error {
 	u, err := svc.repo.FindById(ctx, id)
 	if err != nil {
 		return err
@@ -78,7 +96,7 @@ func (svc *userService) Edit(ctx *gin.Context, id int64, nickName string, dataSt
 	return svc.repo.Edit(ctx, u)
 }
 
-func (svc *userService) Profile(ctx *gin.Context, id int64) (domain.User, error) {
+func (svc *userService) Profile(ctx context.Context, id int64) (domain.User, error) {
 	u, err := svc.repo.FindById(ctx, id)
 	if u.Id == 0 {
 		return u, ErrUserNotFound

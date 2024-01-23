@@ -4,6 +4,7 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/google/wire"
 	"new_home/webook/gin/internal/repository"
 	"new_home/webook/gin/internal/repository/cache"
 	"new_home/webook/gin/internal/repository/dao"
@@ -12,7 +13,6 @@ import (
 	"new_home/webook/gin/internal/web"
 	"new_home/webook/gin/ioc"
 )
-import "github.com/google/wire"
 
 func InitWebService() *gin.Engine {
 	wire.Build(

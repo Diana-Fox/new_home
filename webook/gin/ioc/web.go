@@ -5,8 +5,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"new_home/webook/gin/internal/web"
-	"new_home/webook/gin/pkg/middleware"
-	"new_home/webook/gin/pkg/middleware/ratelimit"
 	"time"
 )
 
@@ -36,11 +34,11 @@ func InitMiddlewares(redisclient redis.Cmdable) []gin.HandlerFunc {
 			//},
 			MaxAge: 12 * time.Hour,
 		}),
-		ratelimit.NewBuilder(redisclient, time.Second, 100).Build(),
-		middleware.NewLoginMiddlewareJWTBuilder().
-			IgnorePaths("/users/loginJWT").
-			IgnorePaths("/users/login_sms").
-			IgnorePaths("/users/login_sms/code/send").
-			IgnorePaths("/users/signup").Build(),
+		//ratelimit.NewBuilder(redisclient, time.Second, 100).Build(),
+		//middleware.NewLoginMiddlewareJWTBuilder().
+		//	IgnorePaths("/users/loginJWT").
+		//	IgnorePaths("/users/login_sms").
+		//	IgnorePaths("/users/login_sms/code/send").
+		//	IgnorePaths("/users/signup").Build(),
 	}
 }
